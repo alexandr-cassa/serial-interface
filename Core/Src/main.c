@@ -21,7 +21,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "tx.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -43,7 +43,10 @@
 UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
-
+static const volatile uint8_t flag_C = 0;
+static uint8_t flag_B = 0;
+static const volatile uint16_t data = 0x2222U;
+static const volatile uint8_t* pointer = (uint8_t*)&data;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -56,7 +59,15 @@ static void MX_USART2_UART_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-
+static void fun(uint8_t bit)
+{
+	HAL_GPIO_WritePin
+	(
+			LED_GREEN_GPIO_Port,
+			LED_GREEN_Pin,
+			(bit != 0)
+	);
+}
 /* USER CODE END 0 */
 
 /**
@@ -89,13 +100,23 @@ int main(void)
   MX_GPIO_Init();
   MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
-
+  TX_init((action)fun);
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+	  if(flag_B)
+	  {
+		  flag_B = !flag_B;
+		  TX_send(pointer, 2);
+	  }
+	  if(flag_C)
+	  {
+		  TX_timerCallback();
+	  }
+	  HAL_Delay(500);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
