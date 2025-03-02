@@ -10,10 +10,12 @@
 
 #include "main.h"
 
-typedef void (*action)();
+typedef void (*action)(uint8_t);
 
-void TX_init(action action);
+void TX_init(action sendAction, action clockAction);
 void TX_send(uint8_t* data, uint8_t size);
-void TX_timerCallback(void);
+
+void TX_timerHalfCompleteCallback();
+void TX_timerCompleteCallback();
 
 #endif /* TX_TX_H_ */

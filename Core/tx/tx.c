@@ -19,6 +19,8 @@ typedef enum
 	stop
 } txState;
 
+typedef void (*callable)();
+
 static struct
 {
 	txState  state;
@@ -26,20 +28,20 @@ static struct
 	uint8_t  numberOfBytes;
 	uint8_t  currentByte;
 	uint8_t  currentBit;
-	action   action;
+	uint8_t  clock;
+	action   sendAction;
+	action   clockAction;
 } tx;
 
-static inline void idleState(void);
-static inline void startState(void);
-static inline void sendState(void);
-static inline void stopState(void);
+static void sendByte(void);
 
 static inline void reset(void);
 static inline void sendBit(uint8_t byte, uint8_t bitLocation);
 
-void TX_init(action action)
+void TX_init(action sendAction, action clockAction)
 {
-	tx.action = action;
+	tx.sendAction  = sendAction;
+	tx.clockAction = clockAction;
 	reset();
 }
 
@@ -50,55 +52,19 @@ void TX_send(uint8_t* data, uint8_t size)
 	tx.state = start;
 }
 
-void TX_timerCallback(void)
-{
-	switch(tx.state)
-	{
-	case idle:
-		idleState();
-		break;
-	case start:
-		startState();
-		break;
-	case sending:
-		sendState();
-		break;
-	case stop:
-		stopState();
-		break;
-	default:
-		break;
-	}
-}
-
-static inline void idleState(void)
-{
-	HAL_GPIO_WritePin(LED_GREEN_GPIO_Port, LED_GREEN_Pin, SET);
-}
-
-static inline void startState(void)
-{
-	tx.state = sending;
-	HAL_GPIO_WritePin(LED_GREEN_GPIO_Port, LED_GREEN_Pin, RESET);
-}
-
-static inline void sendState(void)
+static inline void sendByte(void)
 {
 	if(tx.currentByte < tx.numberOfBytes)
 	{
+		sendBit
+		(
+			tx.dataToTransmit[tx.currentByte],
+			tx.currentBit++
+		);
 		if(tx.currentBit >= BYTE_SIZE)
 		{
 			tx.currentByte++;
 			tx.currentBit = 0;
-		}
-		else
-		{
-			sendBit
-			(
-				tx.dataToTransmit[tx.currentByte],
-				tx.currentBit
-			);
-			tx.currentBit++;
 		}
 	}
 	else
@@ -115,7 +81,7 @@ static inline void stopState(void)
 static inline void sendBit(uint8_t byte, uint8_t bitLocation)
 {
 	uint8_t bit = (byte >> bitLocation) & FIRST_BIT_MASK;
-	tx.action(bit);
+	tx.sendAction(bit);
 }
 
 static inline void reset(void)
@@ -124,4 +90,35 @@ static inline void reset(void)
 	tx.dataToTransmit = NULL;
 	tx.currentByte = 0;
 	tx.numberOfBytes = 0;
+}
+
+void TX_timerHalfCompleteCallback()
+{
+	if (idle == tx.state) return;
+
+	if(start == tx.state)
+	{
+		tx.clock = 1;
+		tx.state = sending;
+	}
+	else if(stop == tx.state)
+	{
+		tx.clock = 0;
+		reset();
+	}
+	else
+	{
+		tx.clock = !tx.clock;
+	}
+	tx.clockAction(tx.clock);
+}
+
+void TX_timerCompleteCallback()
+{
+	if (idle == tx.state) return;
+
+	if (1 == tx.clock)
+	{
+		sendByte();
+	}
 }
