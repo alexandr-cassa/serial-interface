@@ -31,6 +31,7 @@ static struct
 	uint8_t  clock;
 	action   sendAction;
 	action   clockAction;
+	uint8_t debug;
 } tx;
 
 static void sendByte(void);
@@ -56,9 +57,10 @@ static inline void sendByte(void)
 {
 	if(tx.currentByte < tx.numberOfBytes)
 	{
+		tx.debug = tx.dataToTransmit[tx.numberOfBytes - tx.currentByte - 1];
 		sendBit
 		(
-			tx.dataToTransmit[tx.currentByte],
+			tx.dataToTransmit[tx.numberOfBytes - tx.currentByte - 1],
 			tx.currentBit++
 		);
 		if(tx.currentBit >= BYTE_SIZE)
@@ -80,7 +82,7 @@ static inline void stopState(void)
 
 static inline void sendBit(uint8_t byte, uint8_t bitLocation)
 {
-	uint8_t bit = (byte >> bitLocation) & FIRST_BIT_MASK;
+	uint8_t bit = (byte >> (7 - bitLocation)) & FIRST_BIT_MASK;
 	tx.sendAction(bit);
 }
 

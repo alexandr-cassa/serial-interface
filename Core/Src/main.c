@@ -60,15 +60,8 @@ UART_HandleTypeDef huart2;
 /* USER CODE BEGIN PV */
 static const volatile uint8_t flag_C = 0;
 static uint8_t flag_B = 0;
-static const volatile uint16_t data = 0xA5A5;
-static const volatile uint8_t* pointer = (uint8_t*)&data;
-
-//static scheduledContext txRunContext =
-//{
-//		.delay = 500u,
-//		.delayThreshold = 0u,
-//		.run = TX_timerCallback
-//};
+static const volatile uint8_t txData[] = "abcdefghij";
+static const volatile uint8_t rxData[10];
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -78,9 +71,6 @@ static void MX_DMA_Init(void);
 static void MX_USART2_UART_Init(void);
 static void MX_TIM1_Init(void);
 /* USER CODE BEGIN PFP */
-static void executeScheduled(scheduledContext* ctx);
-static void executeIfNotNull(executable execute);
-static void executeTriggerable(triggerable* task);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -89,8 +79,8 @@ static void setBitAction(uint8_t bit)
 {
 	HAL_GPIO_WritePin
 	(
-			LED_GREEN_GPIO_Port,
-			LED_GREEN_Pin,
+			TX_DATA_GPIO_Port,
+			TX_DATA_Pin,
 			(bit == 0)
 	);
 }
@@ -99,36 +89,18 @@ static void setClockAction(uint8_t bit)
 {
 	HAL_GPIO_WritePin
 	(
-			CLOCK_GPIO_Port,
-			CLOCK_Pin,
+			TX_CLOCK_GPIO_Port,
+			TX_CLOCK_Pin,
 			(bit == 0)
 	);
 }
 
-static void executeScheduled(scheduledContext* ctx)
+static uint8_t readDataSignal()
 {
-	if(ctx != NULL)
-	{
-		uint32_t ticks = HAL_GetTick();
-		if(ticks >= ctx->delayThreshold)
-		{
-			executeIfNotNull(ctx->run);
-			ctx->delayThreshold += ctx->delay;
-		}
-	}
-}
-
-static void executeIfNotNull(executable execute)
-{
-	if(execute != NULL)
-	{
-		execute();
-	}
-}
-
-static void executeTriggerable(triggerable* task)
-{
-
+	return HAL_GPIO_ReadPin (
+			RX_DATA_GPIO_Port,
+			RX_DATA_Pin
+	);
 }
 
 /* USER CODE END 0 */
@@ -170,6 +142,7 @@ int main(void)
 
 
   TX_init(setBitAction, setClockAction);
+  RX_init(readDataSignal);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -179,10 +152,9 @@ int main(void)
 	  if(flag_B)
 	  {
 		  flag_B = !flag_B;
-		  TX_send(pointer, 2);
+		  TX_send((uint8_t*)&txData, 10);
+		  RX_start((uint8_t*)&rxData, 10);
 	  }
-//	  executeScheduled(&txRunContext);
-	  HAL_Delay(1);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -392,21 +364,37 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOA_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOA, CLOCK_Pin|LED_GREEN_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOA, TX_CLOCK_Pin|TX_DATA_Pin, GPIO_PIN_RESET);
 
-  /*Configure GPIO pin : CLOCK_Pin */
-  GPIO_InitStruct.Pin = CLOCK_Pin;
+  /*Configure GPIO pin : TX_CLOCK_Pin */
+  GPIO_InitStruct.Pin = TX_CLOCK_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(CLOCK_GPIO_Port, &GPIO_InitStruct);
+  HAL_GPIO_Init(TX_CLOCK_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : LED_GREEN_Pin */
-  GPIO_InitStruct.Pin = LED_GREEN_Pin;
+  /*Configure GPIO pin : TX_DATA_Pin */
+  GPIO_InitStruct.Pin = TX_DATA_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
-  HAL_GPIO_Init(LED_GREEN_GPIO_Port, &GPIO_InitStruct);
+  HAL_GPIO_Init(TX_DATA_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : RX_DATA_Pin */
+  GPIO_InitStruct.Pin = RX_DATA_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(RX_DATA_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : RX_CLOCK_Pin */
+  GPIO_InitStruct.Pin = RX_CLOCK_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING_FALLING;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(RX_CLOCK_GPIO_Port, &GPIO_InitStruct);
+
+  /* EXTI interrupt init*/
+  HAL_NVIC_SetPriority(EXTI4_15_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(EXTI4_15_IRQn);
 
 /* USER CODE BEGIN MX_GPIO_Init_2 */
 /* USER CODE END MX_GPIO_Init_2 */
@@ -421,6 +409,16 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef *htim)
 {
 	TX_timerHalfCompleteCallback();
+}
+
+void HAL_GPIO_EXTI_Falling_Callback(uint16_t GPIO_Pin)
+{
+//	RX_callback();
+}
+
+void HAL_GPIO_EXTI_Rising_Callback(uint16_t GPIO_Pin)
+{
+	RX_callback();
 }
 /* USER CODE END 4 */
 
