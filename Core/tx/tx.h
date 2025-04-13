@@ -12,7 +12,7 @@
 
 typedef void (*action)(uint8_t);
 
-void TX_init(action sendAction, action clockAction);
+void TX_init(TIM_HandleTypeDef* htim, action sendAction);
 void TX_send(uint8_t* data, uint8_t size);
 
 void TX_timerHalfCompleteCallback();
