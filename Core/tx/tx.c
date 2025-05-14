@@ -33,7 +33,6 @@ static struct
 	uint8_t  currentBit;
 	uint8_t  clock;
 	action   sendAction;
-	action   clockAction;
 	uint8_t debug;
 	TIM_HandleTypeDef* timerHandler;
 } tx;
@@ -178,7 +177,6 @@ void TX_timerHalfCompleteCallback()
 	{
 		tx.clock = !tx.clock;
 	}
-	tx.clockAction(tx.clock);
 }
 
 void TX_timerCompleteCallback() {

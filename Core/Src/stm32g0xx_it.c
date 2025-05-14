@@ -41,7 +41,17 @@
 
 /* Private variables ---------------------------------------------------------*/
 /* USER CODE BEGIN PV */
-
+static struct
+{
+	uint32_t r0;
+	uint32_t r1;
+	uint32_t r2;
+	uint32_t r3;
+	uint32_t r12;
+	uint32_t lr;
+	uint32_t pc;
+	uint32_t psr;
+}*stack_ptr; //Указатель на текущее значение стека(SP)
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -56,6 +66,7 @@
 
 /* External variables --------------------------------------------------------*/
 extern TIM_HandleTypeDef htim1;
+extern TIM_HandleTypeDef htim2;
 /* USER CODE BEGIN EV */
 
 /* USER CODE END EV */
@@ -84,6 +95,17 @@ void NMI_Handler(void)
 void HardFault_Handler(void)
 {
   /* USER CODE BEGIN HardFault_IRQn 0 */
+
+//	asm volatile (
+//		"TST lr, #4\n"           // Test bit 2 of LR
+//		"BEQ 1f\n"               // If bit 2 is 0, jump to label 1 (use MSP)
+//		"MRS %[output], PSP\n"   // Else, use PSP
+//		"B 2f\n"                 // Skip to end
+//		"1:\n"
+//		"MRS %[output], MSP\n"   // Use MSP
+//		"2:\n"
+//		: [output] "=r" (stack_ptr)
+//	);
 
   /* USER CODE END HardFault_IRQn 0 */
   while (1)
@@ -180,6 +202,20 @@ void TIM1_CC_IRQHandler(void)
   /* USER CODE BEGIN TIM1_CC_IRQn 1 */
 
   /* USER CODE END TIM1_CC_IRQn 1 */
+}
+
+/**
+  * @brief This function handles TIM2 global interrupt.
+  */
+void TIM2_IRQHandler(void)
+{
+  /* USER CODE BEGIN TIM2_IRQn 0 */
+
+  /* USER CODE END TIM2_IRQn 0 */
+  HAL_TIM_IRQHandler(&htim2);
+  /* USER CODE BEGIN TIM2_IRQn 1 */
+
+  /* USER CODE END TIM2_IRQn 1 */
 }
 
 /* USER CODE BEGIN 1 */

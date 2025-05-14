@@ -15,7 +15,9 @@ typedef void (*action)(uint8_t);
 void TX_init(TIM_HandleTypeDef* htim, action sendAction);
 void TX_send(uint8_t* data, uint8_t size);
 
-void TX_timerHalfCompleteCallback();
 void TX_timerCompleteCallback();
+
+
+void TX_timerHalfCompleteCallback();
 
 #endif /* TX_TX_H_ */

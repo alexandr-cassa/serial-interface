@@ -8,8 +8,8 @@
 
 #define BYTE_SIZE (8u)
 #define TIMER(timHandler) ((timHandler)->Instance)
-
-TIM_TypeDef* timer;
+#define counterOf(timer) (TIMER(timer)->CNT)
+#define arrOf(timer) (TIMER(timer)->ARR)
 
 typedef enum
 {
@@ -26,7 +26,7 @@ typedef enum
 
 static struct
 {
-	signal  signalState;
+	signal_t  signalState;
 	rxState state;
 	uint8_t* data;
 	uint8_t size;
@@ -34,23 +34,89 @@ static struct
 	uint8_t byte;
 	uint8_t currentByte;
 	uint32_t arr;
-} rx;
+	uint32_t period;
+	TIM_HandleTypeDef* timer;
+} rx = {0};
 
 static void switchDataPinMode(uint32_t mode);
 
-static void runIdle(void);
 static void runPreparing(void);
-static void runReady(void);
-static void runSync(void);
-static void runWait(void);
-static void runRecieving(void);
-static void runStop(void);
-static void runFinishing(void);
 
-static inline void reset(void);
-static inline void readBitIntoByte(void);
-static inline void shiftByteOrPutItInBufferIfCompleted(void);
-static inline void resetRxIfBufferIsFull(void);
+static void reset(void);
+static void readBitIntoByte(void);
+static void shiftByteOrPutItInBufferAndGoToStopStateIfCompleted(void);
+
+extern void RX_init(RX_initStruct initStruct)
+{
+	rx.timer = initStruct.htim;
+	rx.signalState = initStruct.source;
+}
+
+
+extern void RX_start(uint8_t* data, uint8_t size)
+{
+	rx.data = data;
+	rx.size = size;
+
+	runPreparing();
+}
+
+extern void runSyncFirstStepOnFallingEdgeEvent(void) {
+	if(ready == rx.state) {
+		counterOf(rx.timer) = 0;
+		arrOf(rx.timer) = -1;
+		HAL_TIM_Base_Start(rx.timer);
+		rx.state = sync;
+	}
+}
+
+extern void runSyncSecondStateOnRisingEdgeEvent(void) {
+	if (sync == rx.state) {
+		rx.period = counterOf(rx.timer);
+
+		switchDataPinMode(GPIO_MODE_INPUT);
+
+		/* Reconfigure timer */
+		HAL_TIM_Base_Stop(rx.timer);
+		counterOf(rx.timer) = 0;
+		arrOf(rx.timer) = rx.period / 2;
+		HAL_TIM_Base_Start_IT(rx.timer);
+
+		rx.state = wait;
+	}
+}
+
+extern void runWaitStateOnTimerHalfPeriodEvent(void) {
+	if (wait == rx.state) {
+		counterOf(rx.timer) = 0;
+		arrOf(rx.timer) = rx.period;
+
+		rx.state = receiving;
+	}
+}
+
+extern void runReceivingStateOnTimerFullPeriodEvent(void) {
+	if (receiving == rx.state) {
+		readBitIntoByte();
+		shiftByteOrPutItInBufferAndGoToStopStateIfCompleted();
+	}
+}
+
+extern void runStopStateOnTimerFullPeriodEvent(void) {
+	if (stop == rx.state) {
+		HAL_TIM_Base_Stop_IT(rx.timer);
+
+		/*
+			May be finish is redundant?
+		 */
+		if (rx.currentByte >= rx.size) {
+			reset();
+			rx.state = idle;
+		} else {
+			runPreparing();
+		}
+	}
+}
 
 static void switchDataPinMode(uint32_t mode) {
 	HAL_GPIO_DeInit(RX_DATA_GPIO_Port, RX_DATA_Pin);
@@ -64,63 +130,12 @@ static void switchDataPinMode(uint32_t mode) {
 	HAL_GPIO_Init(RX_DATA_GPIO_Port, &initStruct);
 }
 
-void RX_init(RX_initStruct initStruct)
-{
-	rx.signalState = source;
-}
-
-
-void RX_start(uint8_t* data, uint8_t size)
-{
-	rx.data = data;
-	rx.size = size;
-	rx.state = ready;
-}
-
-void RX_callback(void)
-{
-	if(idle != rx.state)
-	{
-		readBitIntoByte();
-		shiftByteOrPutItInBufferIfCompleted();
-		resetRxIfBufferIsFull();
-	}
-}
-
-static void runIdle(void) {
-	/* Nothing to do */
-}
-
 static void runPreparing(void) {
 	switchDataPinMode(GPIO_MODE_IT_RISING_FALLING);
 	rx.state = ready;
 }
 
-static void runReady(void) {
-
-}
-
-static void runSync(void) {
-
-}
-
-static void runWait(void) {
-
-}
-
-static void runRecieving(void) {
-
-}
-
-static void runStop(void) {
-
-}
-
-static void runFinishing(void) {
-
-}
-
-static inline void reset(void)
+static void reset(void)
 {
 	rx.currentBit = 0;
 	rx.state = idle;
@@ -129,39 +144,26 @@ static inline void reset(void)
 	rx.size = 0;
 }
 
-static inline void readBitIntoByte(void)
+static void readBitIntoByte(void)
 {
-	rx.byte |= (!rx.signalState()) & (1u);
+	uint8_t bit =  (!rx.signalState()) & (1u);
+	rx.byte |= bit;
+	HAL_GPIO_TogglePin(DEBUG_PIN_GPIO_Port, DEBUG_PIN_Pin);
 }
 
-static inline void shiftByteOrPutItInBufferIfCompleted(void)
+static void shiftByteOrPutItInBufferAndGoToStopStateIfCompleted(void)
 {
 	if ((BYTE_SIZE - 1u) <= rx.currentBit)
 	{
 		rx.data[rx.size - 1 - rx.currentByte++] = rx.byte;
 		rx.byte = 0;
 		rx.currentBit = 0;
+
+		rx.state = stop;
 	}
 	else
 	{
 		rx.byte <<= 1;
 		rx.currentBit++;
 	}
-}
-
-static inline void resetRxIfBufferIsFull(void)
-{
-	if (rx.currentByte >= rx.size)
-	{
-		reset();
-	}
-}
-
-void RX_FallingEdgeCallback(void) {
-	timer->CNT = 0;
-}
-
-void RX_RisingEdgeCallback(void) {
-	rx.arr = timer->CNT;
-	timer->CNT = 0;
 }
