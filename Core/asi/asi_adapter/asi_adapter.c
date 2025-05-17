@@ -7,19 +7,69 @@
 
 #include "asi_adapter.h"
 
-uint8_t readBit(void);
-void writeBit(void);
+static void switchDataPinMode(uint32_t mode);
 
-void setReceiverDataPinStateToGpioInput(void);
-void setReceiverDataPinStateToEXTI(void);
+uint8_t readBit(void) {
+	return !HAL_GPIO_ReadPin (
+		RX_DATA_GPIO_Port,
+		RX_DATA_Pin
+	);
+}
+void writeBit(uint8_t bit) {
+	HAL_GPIO_WritePin (
+		DATA_GPIO_Port,
+		DATA_Pin,
+		(bit != 0)
+	);
+}
 
-uint32_t getReceiverTimerCntValue(void);
-void     setReceiverTimerCntValue(uint32_t val);
+void setReceiverDataPinStateToGpioInput(void) {
+	switchDataPinMode(GPIO_MODE_INPUT);
+}
 
-uint32_t getReceiverTimerArrValue(void);
-void     setReceiverTimerArrValue(uint32_t val);
+void setReceiverDataPinStateToEXTI(void) {
+	switchDataPinMode(GPIO_MODE_IT_RISING_FALLING);
+}
 
-void receiverTimerBaseStart(void);
-void receiverTimerBaseStop(void);
-void receiverTimerBaseStartIT(void);
-void receiverTimerBaseStopIT(void);
+uint32_t getReceiverTimerCntValue(void) {
+	return TIM2->CNT;
+}
+void setReceiverTimerCntValue(uint32_t val) {
+	TIM2->CNT = val;
+}
+
+uint32_t getReceiverTimerArrValue(void) {
+	return TIM2->ARR;
+}
+
+void setReceiverTimerArrValue(uint32_t val) {
+	TIM2->ARR = val;
+}
+
+void receiverTimerBaseStart(void) {
+	HAL_TIM_Base_Start(htim2);
+}
+
+void receiverTimerBaseStop(void) {
+	HAL_TIM_Base_Stop(htim2);
+}
+
+void receiverTimerBaseStartIT(void) {
+	HAL_TIM_Base_Start_IT(&htim2);
+}
+
+void receiverTimerBaseStopIT(void) {
+	HAL_TIM_Base_Stop_IT(&htim2);
+}
+
+static void switchDataPinMode(uint32_t mode) {
+	HAL_GPIO_DeInit(RX_DATA_GPIO_Port, RX_DATA_Pin);
+
+	GPIO_InitTypeDef initStruct = {
+		.Pin = RX_DATA_Pin,
+		.Mode = mode,
+		.Pull = GPIO_NOPULL,
+		.Speed = GPIO_SPEED_FREQ_LOW
+	};
+	HAL_GPIO_Init(RX_DATA_GPIO_Port, &initStruct);
+}

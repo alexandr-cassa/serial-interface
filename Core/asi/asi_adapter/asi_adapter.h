@@ -9,9 +9,12 @@
 #define ASI_ASI_ADAPTER_ASI_ADAPTER_H_
 
 #include "stdint.h"
+/* User includes */
+#include "main.h"
+/* End of user includes */
 
 uint8_t readBit(void);
-void writeBit(void);
+void writeBit(uint8_t bit);
 
 void setReceiverDataPinStateToGpioInput(void);
 void setReceiverDataPinStateToEXTI(void);
